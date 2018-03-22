@@ -44,7 +44,7 @@ for(i=0;i<10;i++){
 // foo:8
 // foo:9
 // foo被调用的次数
-console.log(foo.count);// 0?
+console.log(foo.count);// 4
 ```
 - 它的作用域
 
@@ -313,3 +313,234 @@ console.log(bar.a);// 2
 ---
 ### 优先级
 
+**隐式绑定和显示绑定**
+```
+function foo() {
+  console.log(this.a);
+} 
+
+var obj1 = {
+  a:2,
+  foo:foo
+};
+var obj2 = {
+  a:3,
+  foo:foo
+};
+
+obj1.foo();//2
+obj2.foo();//3
+
+obj1.foo.call(obj2);//3
+obj2.foo.call(obj1);//2
+```
+可以看到显示绑定比隐式绑定优先级更高
+
+**new绑定和隐式绑定**
+```
+function foo(something) {
+  this.a = something
+} 
+
+var obj1 = {
+  foo:foo
+};
+var obj2 = {};
+
+obj1.foo(2);
+console.log(obj1.a);//2
+
+obj1.foo.call(obj2,3);
+console.log(obj2.a);//3
+
+var bar = new obj1.foo(4);
+console.log(obj1.a);//2
+console.log(bar.a);//4
+```
+new绑定比隐式绑定优先级更高
+
+**new和显示绑定不能直接比较，比较new和硬绑定**
+
+new 和 call/apply无法一起使用
+
+```
+function foo(something) {
+  this.a = something
+} 
+
+var obj1 = {};
+
+var bar = foo.bind(obj1);
+bar(2);
+console.log(obj1.a);//2
+
+var baz = new bar(3);
+console.log(obj1.a);//2
+console.log(baz.a);//3
+```
+......
+
+new的优先级比显示绑定更高
+
+**判断this**
+
+1. 函数是否在new中调用？ 如果是的话，this绑定的对象是新创建的对象
+2. 函数是否通过call/apply或者硬绑定调用？this绑定的是指定的对象
+3. 函数是否在某个上下文中调用？this绑定的是那个上下文对象
+4. 都不是，严格模式绑定到undefined，否则绑定到全局对象
+ 
+---
+### 绑定例外
+
+- 如果你把null或者undefined作为this的绑定对象传入call,apply,bind，这些值在调用时会被忽略，实际应用的是默认绑定
+```
+function foo() {
+  console.log(this.a);
+}
+
+var a = 2;
+
+foo.call(null);//2或undefined
+```
+应用：
+
+一种常见的做法是使用apply(..)来“展开”一个数组，并当做参数传入一个函数。类似的，bind(..)可以对参数进行柯里化，这种方法有时非常有用
+```
+function foo(a,b) {
+  console.log("a:" + a + "，b:" + b);
+}
+//把数组展开
+foo.apply(null,[2,3]);//a:2，b:3
+//使用bind进行柯里化
+var bar = foo.bind(null,2);
+bar(3);//a:2，b:3
+```
+然而，总是使用null来忽this绑定可能会产生某些副作用。。。。。。
+
+更安全的方法：
+
+创建一个空对象最简单的方法Object.create(null),Object.create(null)和{}很像，但是并不会创建Object.prototype这个委托，所以它比{}“更空”：
+
+```
+function foo(a,b) {
+  console.log("a:" + a + "，b:" + b);
+}
+// ø =>option+o
+var ø = Object.create(null);
+//把数组展开
+foo.apply(ø,[2,3]);//a:2，b:3
+//使用bind进行柯里化
+var bar = foo.bind(ø,2);
+bar(3);//a:2，b:3
+```
+- 你有可能有意或无意的创建一个函数的“间接引用”，这种情况下，调用这个函数会应用默认绑定
+
+间接引用最容易在赋值时发生
+```
+function foo() {
+  console.log(this.a);
+}
+var a = 2;
+var o = {
+  a:3,
+  foo:foo
+};
+var p = { a:4 };
+
+o.foo();//3
+(p.foo = o.foo)();//2或undefined
+```
+
+赋值表达式p.foo = o.foo 的返回值是目标函数的引用，因此调用位置是foo()而不是p.foo()或者o.foo().
+
+- 软绑定
+
+硬绑定会大大降低函数的灵活性，使用硬绑定后就无法使用隐式绑定或者显示绑定来修改this.
+
+如果可以给默认绑定制定一个全局对象和undefined以外的值，那就可以实现和硬绑定相同的效果，同时保留隐式绑定或者显示绑定修改this的能力
+
+可以通过一种叫软绑定的方法来实现我们想要的效果：
+
+```
+if(!Function.prototype.softBind) {
+  Function.prototype.softBind = function(obj) {
+    var fn = this;
+    //捕获所有curried参数
+    var curried = [].slice.call(arguments,1);
+    var bound = function() {
+      return fn.apply(
+        (!this||this ===(window||global))?obj:this,
+        curried.concat.apply(curried,arguments)
+      );
+    };
+    bound.prototype = object.create(fn.prototype);
+    return bound;
+  };
+}
+```
+```
+function foo() {
+  console.log("name:" + this.name);
+}
+
+var obj = {name:"obj"},
+    obj2 = {name:"obj2"},
+    obj3 = {name:"obj3"};
+
+var fooOBJ = foo.softBind(obj);
+fooOBJ(); //name:obj
+
+obj2.foo = foo.softBind(obj);
+obj2.foo(); //name:obj2
+
+fooOBJ.call(obj3);//name:obj3
+
+setTimeout(obj2.foo,10);//name:obj
+
+```
+
+---
+### this词法
+
+特殊函数类型：箭头函数
+
+箭头函数并不是使用function关键自定义的，而是使用被称为“胖箭头”的操作符=>定义的。箭头函数不使用this的四种标准规则，而是根据外层（函数或全局）作用域来决定this
+
+```
+function foo() {
+  //返回一个箭头函数
+  return (a) => {
+    console.log(this.a);//this继承自foo
+  };
+}
+
+var obj1 = {
+  a:2
+};
+
+var obj2 = {
+  a:3
+};
+
+var bar = foo.call(obj1);
+bar.call(obj2);//2,不是3！
+
+```
+foo()内部创建的箭头函数会捕获调用时foo()的this。由于foo（）的this绑定到obj1，bar(引用箭头函数)的this也会绑定到obj1，箭头函数的绑定无法被修改（new也不行）
+
+箭头函数常被用于回调函数中：
+```
+function foo() {
+  setTimeout(()=>{
+    console.log(this.a);//这里的this在词法上继承自foo()
+  },1000);
+}
+
+var obj = {
+  a:2
+};
+
+foo.call(obj);
+```
+
+虽然self = this 和箭头函数看起来都可以取代bind(..),但本质上来说它们想代替的是this机制s
