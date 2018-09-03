@@ -1,5 +1,4 @@
 # 李邵鑫
- 应聘岗位：web前端，web实习生（可以转正那种）
  邮箱：hellokidder@qq.com
  电话：188-3025-9916
  GitHub：https://github.com/hellokidder
@@ -8,7 +7,7 @@
  社会活动 创业协会副会长 校学生会文艺部副部长 做过义工
 ## IT技能
  主要编程语言：JavaScript
- 会一点的：react(react-native刚开始接触) eggjs mysql 微信小程序
+ 会一点的：react eggjs mysql 微信小程序
  开发平台：MacOS
 ## 项目经历
 **归心之喃 微信小程序** https://github.com/hellokidder/wx.white-noise
